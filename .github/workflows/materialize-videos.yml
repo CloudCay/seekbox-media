@@ -1,0 +1,40 @@
+name: Materialize videos
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Decode staging base64 into videos/
+        run: |
+          set -euo pipefail
+          mkdir -p videos
+          for i in 1 2 3 4 5 6 7 8; do
+            out="videos/clip${i}.mp4"
+            if [ -d "staging/clip${i}.mp4" ]; then
+              cat staging/clip${i}.mp4/part-* | base64 -d > "$out"
+            elif [ -f "staging/clip${i}.mp4.b64" ]; then
+              base64 -d "staging/clip${i}.mp4.b64" > "$out"
+            else
+              echo "missing staging for clip${i}"
+              exit 1
+            fi
+            echo "decoded $out ($(wc -c < "$out") bytes)"
+          done
+          sha256sum -c SHA256SUMS
+      - name: Commit videos and remove staging
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf staging
+          git add videos SHA256SUMS
+          git add -A staging
+          git status
+          git commit -m "Add SeekBox social video clips and remove base64 staging"
+          git push
